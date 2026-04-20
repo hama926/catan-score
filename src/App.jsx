@@ -554,7 +554,10 @@ export default function CatanApp() {
             <div style={{ color: "#3a1800", fontSize: 13, fontFamily: "'Cinzel',serif", fontWeight: 700, marginBottom: 2 }}>感想・要望をポストしてね！</div>
             <div style={{ color: "#8a5030", fontSize: 11, fontFamily: "'Noto Serif JP',serif", lineHeight: 1.5 }}>#CATANスコア をつけて投稿してくれると励みになります🎲</div>
           </div>
-          <a href={`https://x.com/intent/post?text=${encodeURIComponent("カタンのスコア管理アプリ使ってみた！\n感想・要望をぜひ教えてね🎲\n#CATANスコア #カタン #ボードゲーム")}&url=${encodeURIComponent("https://catan-score.vercel.app")}`} target="_blank" rel="noopener noreferrer"
+          <a
+            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent("カタンのスコア管理アプリ使ってみた！\n感想・要望をぜひ教えてね🎲\n#CATANスコア #カタン #ボードゲーム\nhttps://catan-score.vercel.app")}`}
+            target="_blank"
+            rel="noopener noreferrer"
             style={{ display: "inline-block", background: "#3a1800", color: "#fff", fontFamily: "'Cinzel',serif", fontSize: 12, fontWeight: 700, padding: "8px 14px", borderRadius: 20, textDecoration: "none", flexShrink: 0 }}>ポストする</a>
         </div>
         <div style={{ textAlign: "center", color: "#c8906a", fontSize: 10, fontFamily: "'Cinzel',serif", marginTop: 10, marginBottom: 20, letterSpacing: 1 }}>CATAN SCORE · Made with ♥</div>
