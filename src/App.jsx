@@ -1,4 +1,11 @@
 import { useState, useEffect, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+
+// ===== Supabase =====
+const supabase = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+);
 
 const PIECE_COLORS = [
   { id: "blue",   label: "青", hex: "#1565C0", light: "#42A5F5" },
@@ -26,24 +33,135 @@ const defaultPlayer = (i) => ({ name: `プレイヤー${i + 1}`, colorId: null, 
 const getColor = (colorId) => colorId ? (PIECE_COLORS.find(c => c.id === colorId) || null) : null;
 const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
-// ===== ストレージ（localStorage） =====
-function loadHistory() {
-  try { const v = localStorage.getItem("catan_history"); return v ? JSON.parse(v) : []; }
+// ===== Supabase CRUD =====
+async function fetchHistory(roomCode) {
+  const { data, error } = await supabase
+    .from("games")
+    .select("*")
+    .eq("room_code", roomCode)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data.map(row => ({ ...row.data, id: row.id }));
+}
+
+async function insertRecord(roomCode, record) {
+  const { error } = await supabase
+    .from("games")
+    .insert({ room_code: roomCode, data: record });
+  if (error) throw error;
+}
+
+async function deleteRecord(id) {
+  const { error } = await supabase
+    .from("games")
+    .delete()
+    .eq("id", id);
+  if (error) throw error;
+}
+
+// メンバーはlocalStorageに保存（室コードごと）
+function loadMembers(roomCode) {
+  try { const v = localStorage.getItem(`catan_members_${roomCode}`); return v ? JSON.parse(v) : []; }
   catch { return []; }
 }
-function saveHistory(h) {
-  try { localStorage.setItem("catan_history", JSON.stringify(h)); } catch {}
-}
-function loadMembers() {
-  try { const v = localStorage.getItem("catan_members"); return v ? JSON.parse(v) : []; }
-  catch { return []; }
-}
-function saveMembers(m) {
-  try { localStorage.setItem("catan_members", JSON.stringify(m)); } catch {}
+function saveMembers(roomCode, m) {
+  try { localStorage.setItem(`catan_members_${roomCode}`, JSON.stringify(m)); } catch {}
 }
 
 const labelStyle = { display: "block", color: "#8a5030", fontSize: 10, fontFamily: "'Cinzel', serif", letterSpacing: 1, marginBottom: 4, textTransform: "uppercase" };
 const selectStyle = { background: "#fdf6ec", border: "1px solid #c8906a", borderRadius: 6, color: "#5a2e10", padding: "6px 8px", fontSize: 13, outline: "none", width: "100%" };
+
+// ===== ルームログイン画面 =====
+function RoomLogin({ onLogin }) {
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    const trimmed = code.trim();
+    if (!trimmed) { setError("合言葉を入力してください"); return; }
+    if (trimmed.length < 3) { setError("3文字以上で入力してください"); return; }
+    setLoading(true);
+    setError("");
+    try {
+      // 接続確認として一件だけ取得してみる
+      await fetchHistory(trimmed);
+      // セッションに保存
+      sessionStorage.setItem("catan_room", trimmed);
+      onLogin(trimmed);
+    } catch (e) {
+      setError("接続エラーが発生しました。環境変数を確認してください。");
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "linear-gradient(175deg, #f5ede0 0%, #eedcc8 40%, #e8d0b4 100%)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "'Noto Serif JP', serif", padding: 24 }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Serif+JP:wght@400;600;700&display=swap');*{box-sizing:border-box}`}</style>
+
+      {/* ヘッダーロゴ */}
+      <div style={{ marginBottom: 32, textAlign: "center" }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 14 }}>
+          <svg width="48" height="48" viewBox="0 0 42 42" style={{ filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))" }}>
+            <rect x="2" y="2" width="38" height="38" rx="7" fill="#F5C518" stroke="#C8980A" strokeWidth="1.5"/>
+            {[[12,12],[30,30]].map(([cx,cy],i) => <circle key={i} cx={cx} cy={cy} r="4.5" fill="#1a1000"/>)}
+          </svg>
+          <svg width="48" height="48" viewBox="0 0 42 42" style={{ filter: "drop-shadow(0 4px 8px rgba(0,0,0,0.3))" }}>
+            <rect x="2" y="2" width="38" height="38" rx="7" fill="#D62C1A" stroke="#9e1a0a" strokeWidth="1.5"/>
+            {[[11,11],[31,11],[21,21],[11,31],[31,31]].map(([cx,cy],i) => <circle key={i} cx={cx} cy={cy} r="4" fill="#fff"/>)}
+          </svg>
+        </div>
+        <h1 style={{ margin: 0, fontFamily: "'Cinzel', serif", fontWeight: 900, fontSize: 26, letterSpacing: 4, color: "#8e2a0a", textShadow: "0 2px 4px rgba(140,50,10,0.15)" }}>CATAN SCORE</h1>
+        <p style={{ margin: "6px 0 0", color: "#b07040", fontSize: 12, letterSpacing: 3, fontFamily: "'Cinzel', serif" }}>FAMILY BATTLE RECORD</p>
+      </div>
+
+      {/* ログインカード */}
+      <div style={{ background: "#fff8f0", border: "2px solid #d4a880", borderRadius: 16, padding: "32px 28px", width: "100%", maxWidth: 380, boxShadow: "0 8px 32px rgba(140,80,20,0.15)" }}>
+        <div style={{ color: "#8e2a0a", fontFamily: "'Cinzel', serif", fontSize: 13, fontWeight: 700, letterSpacing: 2, marginBottom: 8, textAlign: "center" }}>🔑 ROOM CODE</div>
+        <p style={{ color: "#8a5030", fontSize: 12, textAlign: "center", marginBottom: 20, lineHeight: 1.7 }}>
+          家族だけの合言葉を入力してください<br/>
+          <span style={{ color: "#b07040", fontSize: 11 }}>（例: tsurumien / catan2024）</span>
+        </p>
+
+        <input
+          value={code}
+          onChange={e => { setCode(e.target.value); setError(""); }}
+          onKeyDown={e => e.key === "Enter" && handleLogin()}
+          placeholder="合言葉を入力..."
+          autoFocus
+          style={{ ...selectStyle, fontSize: 18, textAlign: "center", padding: "12px", letterSpacing: 3, marginBottom: 12, fontFamily: "'Cinzel', serif", fontWeight: 700, border: error ? "2px solid #D62C1A" : "2px solid #c8906a" }}
+        />
+
+        {error && (
+          <div style={{ color: "#D62C1A", fontSize: 12, textAlign: "center", marginBottom: 10, fontFamily: "'Noto Serif JP', serif" }}>⚠️ {error}</div>
+        )}
+
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          style={{ width: "100%", padding: "13px 0", borderRadius: 10, background: loading ? "#e8d0b4" : "linear-gradient(135deg,#c0392b,#e74c3c)", border: "none", cursor: loading ? "wait" : "pointer", color: loading ? "#b07040" : "#fff", fontFamily: "'Cinzel', serif", fontSize: 14, fontWeight: 700, letterSpacing: 2, boxShadow: loading ? "none" : "0 4px 15px #c0392b55", transition: "all .3s" }}
+        >
+          {loading ? "⏳ 接続中..." : "⚔️ 入室する"}
+        </button>
+
+        <div style={{ marginTop: 20, padding: "12px 14px", background: "#fdf6ec", borderRadius: 8, border: "1px solid #e8c8a0" }}>
+          <div style={{ color: "#8a5030", fontSize: 10, fontFamily: "'Cinzel', serif", fontWeight: 700, marginBottom: 6, letterSpacing: 1 }}>💡 TIPS</div>
+          <ul style={{ margin: 0, paddingLeft: 16, color: "#a06840", fontSize: 11, lineHeight: 1.8 }}>
+            <li>合言葉が同じなら家族みんなが同じ履歴を共有できます</li>
+            <li>新しい合言葉を入力すると新しい部屋が自動作成されます</li>
+            <li>英数字・ひらがな・記号どれでもOK</li>
+          </ul>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 20, color: "#c8906a", fontSize: 10, fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>
+        CATAN SCORE · Made with ♥
+      </div>
+    </div>
+  );
+}
+
+// ===== 以下は元のコンポーネント群（変更なし） =====
 
 function ColorPicker({ value, usedColors, onChange }) {
   return (
@@ -413,7 +531,11 @@ function MemberManager({ members, onUpdate }) {
   );
 }
 
+// ===== メインアプリ =====
 export default function CatanApp() {
+  // セッションから合言葉を復元
+  const savedRoom = sessionStorage.getItem("catan_room");
+  const [roomCode, setRoomCode] = useState(savedRoom || null);
   const [tab, setTab] = useState("new");
   const [playerCount, setPlayerCount] = useState(4);
   const [players, setPlayers] = useState(() => Array.from({ length: 4 }, (_, i) => defaultPlayer(i)));
@@ -424,31 +546,70 @@ export default function CatanApp() {
   const [location, setLocation] = useState("");
   const [imageStart, setImageStart] = useState(null);
   const [imageEnd, setImageEnd] = useState(null);
-  const [history, setHistory] = useState(() => loadHistory());
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [members, setMembers] = useState(() => loadMembers());
+  const [members, setMembers] = useState([]);
   const [showMemberManager, setShowMemberManager] = useState(false);
 
-  const updateMembers = (m) => { setMembers(m); saveMembers(m); };
-  const handleAddMember = (name) => { if (!members.includes(name)) { const m = [...members, name]; setMembers(m); saveMembers(m); } };
+  // ログイン後に履歴・メンバーを読み込む
+  useEffect(() => {
+    if (!roomCode) return;
+    setMembers(loadMembers(roomCode));
+    setLoadingHistory(true);
+    fetchHistory(roomCode)
+      .then(h => setHistory(h))
+      .catch(e => console.error(e))
+      .finally(() => setLoadingHistory(false));
+  }, [roomCode]);
+
+  const handleLogin = (code) => setRoomCode(code);
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("catan_room");
+    setRoomCode(null);
+    setHistory([]);
+  };
+
+  const updateMembers = (m) => { setMembers(m); saveMembers(roomCode, m); };
+  const handleAddMember = (name) => { if (!members.includes(name)) { const m = [...members, name]; setMembers(m); saveMembers(roomCode, m); } };
   const updatePlayerCount = (n) => { setPlayerCount(n); setPlayers(prev => n > prev.length ? [...prev, ...Array.from({ length: n - prev.length }, (_, i) => defaultPlayer(prev.length + i))] : prev.slice(0, n)); };
   const updatePlayer = (i, p) => setPlayers(prev => prev.map((x, j) => j === i ? p : x));
   const usedColorsFor = (idx) => players.filter((_, i) => i !== idx).map(p => p.colorId);
   const winner = players.reduce((a, b) => b.finalScore > a.finalScore ? b : a, players[0]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    setSaveError("");
     const record = { id: genId(), date, location, edition, scenario, victoryPoints, players, imageStart, imageEnd };
-    const h = [record, ...history]; setHistory(h); saveHistory(h);
-    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    try {
+      await insertRecord(roomCode, record);
+      const h = [record, ...history];
+      setHistory(h);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e) {
+      setSaveError("保存に失敗しました。接続を確認してください。");
+    }
   };
 
-  const handleDelete = (id) => { const h = history.filter(r => r.id !== id); setHistory(h); saveHistory(h); };
+  const handleDelete = async (id) => {
+    try {
+      await deleteRecord(id);
+      setHistory(h => h.filter(r => r.id !== id));
+    } catch (e) {
+      alert("削除に失敗しました");
+    }
+  };
 
   const filteredHistory = history.filter(r =>
     r.players.some(p => p.name.includes(searchQuery)) || (r.location||"").includes(searchQuery) ||
     (r.date||"").includes(searchQuery) || (r.edition||"").includes(searchQuery) || (r.scenario||"").includes(searchQuery)
   );
+
+  // ログインしていなければログイン画面を表示
+  if (!roomCode) return <RoomLogin onLogin={handleLogin} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "linear-gradient(175deg, #f5ede0 0%, #eedcc8 40%, #e8d0b4 100%)", fontFamily: "'Noto Serif JP', serif", paddingBottom: 40 }}>
@@ -456,6 +617,13 @@ export default function CatanApp() {
 
       <div style={{ background: "linear-gradient(180deg,#c0441a 0%,#a83510 60%,#8e2a0a 100%)", borderBottom: "3px solid #7a2208", padding: "22px 16px 16px", textAlign: "center", position: "relative", boxShadow: "0 4px 16px rgba(140,50,10,0.25)" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: "linear-gradient(90deg,#1565C0,#C5CDD2,#E65100,#B71C1C,#1B5E20,#4E342E)" }} />
+
+        {/* ルームコード表示＋ログアウト */}
+        <div style={{ position: "absolute", top: 10, right: 12, display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ background: "#ffffff22", borderRadius: 20, padding: "3px 10px", fontSize: 10, color: "#f5c89a", fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>🔑 {roomCode}</span>
+          <button onClick={handleLogout} style={{ background: "none", border: "1px solid #f5c89a55", borderRadius: 6, color: "#f5c89a99", fontSize: 9, padding: "3px 7px", cursor: "pointer", fontFamily: "'Cinzel', serif" }}>退室</button>
+        </div>
+
         <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 10 }}>
           <svg width="42" height="42" viewBox="0 0 42 42" style={{ filter: "drop-shadow(0 3px 6px rgba(0,0,0,0.35))" }}>
             <rect x="2" y="2" width="38" height="38" rx="7" fill="#F5C518" stroke="#C8980A" strokeWidth="1.5"/>
@@ -521,6 +689,8 @@ export default function CatanApp() {
               {players.map((p, i) => <PlayerCard key={i} player={p} onChange={np => updatePlayer(i, np)} winner={p === winner && players.some(x => x.finalScore > 0)} usedColors={usedColorsFor(i)} knownMembers={members} onAddMember={handleAddMember} />)}
             </div>
 
+            {saveError && <div style={{ color: "#D62C1A", fontSize: 12, textAlign: "center", marginBottom: 8 }}>⚠️ {saveError}</div>}
+
             <button onClick={handleSave} style={{ width: "100%", padding: "14px 0", borderRadius: 10, background: saved?"linear-gradient(135deg,#27ae60,#2ecc71)":"linear-gradient(135deg,#c0392b,#e74c3c)", border: "none", cursor: "pointer", color: "#fff", fontFamily: "'Cinzel',serif", fontSize: 15, fontWeight: 700, letterSpacing: 2, boxShadow: saved?"0 4px 15px #27ae6055":"0 4px 15px #c0392b55", transition: "all .3s" }}>
               {saved ? "✓ 保存しました！" : "⚔️ 対戦結果を保存"}
             </button>
@@ -530,9 +700,11 @@ export default function CatanApp() {
         {tab === "history" && (
           <div>
             <input type="text" placeholder="🔍 名前・場所・日付・版で検索..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ ...selectStyle, marginBottom: 14, padding: "10px 12px", fontSize: 13 }} />
-            {filteredHistory.length === 0
-              ? <div style={{ textAlign: "center", color: "#8a5030", padding: 40, fontFamily: "'Cinzel',serif" }}>{history.length === 0 ? "まだ対戦記録がありません" : "検索結果がありません"}</div>
-              : filteredHistory.map(r => <HistoryRow key={r.id} record={r} onDelete={handleDelete} />)
+            {loadingHistory
+              ? <div style={{ textAlign: "center", color: "#8a5030", padding: 40, fontFamily: "'Cinzel',serif" }}>⏳ 読み込み中...</div>
+              : filteredHistory.length === 0
+                ? <div style={{ textAlign: "center", color: "#8a5030", padding: 40, fontFamily: "'Cinzel',serif" }}>{history.length === 0 ? "まだ対戦記録がありません" : "検索結果がありません"}</div>
+                : filteredHistory.map(r => <HistoryRow key={r.id} record={r} onDelete={handleDelete} />)
             }
           </div>
         )}
@@ -554,11 +726,7 @@ export default function CatanApp() {
             <div style={{ color: "#3a1800", fontSize: 13, fontFamily: "'Cinzel',serif", fontWeight: 700, marginBottom: 2 }}>感想・要望をポストしてね！</div>
             <div style={{ color: "#8a5030", fontSize: 11, fontFamily: "'Noto Serif JP',serif", lineHeight: 1.5 }}>#CATANスコア をつけて投稿してくれると励みになります🎲</div>
           </div>
-          <a
-            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent("カタンのスコア管理アプリ使ってみた！\n感想・要望をぜひ教えてね🎲\n#CATANスコア #カタン #ボードゲーム\nhttps://catan-score.vercel.app")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: "inline-block", background: "#3a1800", color: "#fff", fontFamily: "'Cinzel',serif", fontSize: 12, fontWeight: 700, padding: "8px 14px", borderRadius: 20, textDecoration: "none", flexShrink: 0 }}>ポストする</a>
+          <a href={`https://twitter.com/intent/tweet?text=${encodeURIComponent("カタンのスコア管理アプリ使ってみた！\n感想・要望をぜひ教えてね🎲\n#CATANスコア #カタン #ボードゲーム\nhttps://catan-score.vercel.app")}`} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", background: "#3a1800", color: "#fff", fontFamily: "'Cinzel',serif", fontSize: 12, fontWeight: 700, padding: "8px 14px", borderRadius: 20, textDecoration: "none", flexShrink: 0 }}>ポストする</a>
         </div>
         <div style={{ textAlign: "center", color: "#c8906a", fontSize: 10, fontFamily: "'Cinzel',serif", marginTop: 10, marginBottom: 20, letterSpacing: 1 }}>CATAN SCORE · Made with ♥</div>
       </div>
