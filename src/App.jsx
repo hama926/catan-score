@@ -59,6 +59,14 @@ async function deleteRecord(id) {
   if (error) throw error;
 }
 
+async function updateRecord(id, record) {
+  const { error } = await supabase
+    .from("games")
+    .update({ data: record })
+    .eq("id", id);
+  if (error) throw error;
+}
+
 // メンバーはlocalStorageに保存（室コードごと）
 function loadMembers(roomCode) {
   try { const v = localStorage.getItem(`catan_members_${roomCode}`); return v ? JSON.parse(v) : []; }
@@ -120,7 +128,7 @@ function RoomLogin({ onLogin }) {
         <div style={{ color: "#8e2a0a", fontFamily: "'Cinzel', serif", fontSize: 13, fontWeight: 700, letterSpacing: 2, marginBottom: 8, textAlign: "center" }}>🔑 ROOM CODE</div>
         <p style={{ color: "#8a5030", fontSize: 12, textAlign: "center", marginBottom: 20, lineHeight: 1.7 }}>
           家族だけの合言葉を入力してください<br/>
-          <span style={{ color: "#b07040", fontSize: 11 }}>（例: tsurumien / catan2024）</span>
+          <span style={{ color: "#b07040", fontSize: 11 }}>（例: catan2024 / tanaka家）</span>
         </p>
 
         <input
@@ -185,7 +193,7 @@ function ColorPicker({ value, usedColors, onChange }) {
   );
 }
 
-function StarRating({ value, max = 10, onChange, color = "#c0392b" }) {
+function StarRating({ value, max = 15, onChange, color = "#c0392b" }) {
   return (
     <div style={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
       {Array.from({ length: max }, (_, i) => (
@@ -404,8 +412,11 @@ async function generateShareCard(record) {
   return canvas.toDataURL("image/png");
 }
 
-function HistoryRow({ record, onDelete }) {
+function HistoryRow({ record, onDelete, onUpdate }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editData, setEditData] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const winner = record.players.reduce((a, b) => b.finalScore > a.finalScore ? b : a, record.players[0]);
   const wc = getColor(winner.colorId) || FALLBACK_COLOR;
@@ -417,20 +428,46 @@ function HistoryRow({ record, onDelete }) {
     setSharing(false);
   };
 
+  const startEdit = (e) => {
+    e.stopPropagation();
+    setEditData(JSON.parse(JSON.stringify(record))); // deep copy
+    setEditing(true);
+    setOpen(true);
+  };
+
+  const handleEditSave = async (e) => {
+    e.stopPropagation();
+    setSaving(true);
+    try {
+      await updateRecord(record.id, editData);
+      onUpdate(record.id, editData);
+      setEditing(false);
+    } catch { alert("更新に失敗しました"); }
+    setSaving(false);
+  };
+
+  const updateEditPlayer = (i, p) => {
+    setEditData(prev => ({ ...prev, players: prev.players.map((x, j) => j === i ? p : x) }));
+  };
+
   return (
     <div style={{ background: "#fff8f0", border: "1px solid #d4a880", borderRadius: 10, marginBottom: 8, overflow: "hidden" }}>
-      <div onClick={() => setOpen(!open)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer" }}>
+      <div onClick={() => !editing && setOpen(!open)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: editing ? "default" : "pointer" }}>
         <div style={{ width: 28, height: 28, borderRadius: "50%", background: `radial-gradient(circle at 35% 35%, ${wc.light}, ${wc.hex})`, flexShrink: 0, boxShadow: `0 0 6px ${wc.hex}66` }} />
         <div style={{ flex: 1 }}>
           <div style={{ color: "#3a1800", fontSize: 13, fontFamily: "'Cinzel', serif", fontWeight: 700 }}>{winner.name} 優勝</div>
           <div style={{ color: "#8a5030", fontSize: 11 }}>{record.date} · {record.location} · {record.players.length}人</div>
           <div style={{ color: "#a06840", fontSize: 10, marginTop: 1 }}>{mapLabel} · 🎯{record.victoryPoints || 10}点</div>
         </div>
-        <span style={{ color: "#b07040", fontSize: 14 }}>{open ? "▲" : "▼"}</span>
+        {!editing && <span style={{ color: "#b07040", fontSize: 14 }}>{open ? "▲" : "▼"}</span>}
         <button onClick={handleShare} style={{ background: sharing ? "#e8d0b4" : "#D62C1A", border: "none", borderRadius: 6, color: "#fff", cursor: sharing ? "wait" : "pointer", fontSize: 12, padding: "4px 8px", fontFamily: "'Cinzel', serif", fontWeight: 700, flexShrink: 0 }}>{sharing ? "…" : "📤"}</button>
+        {!editing
+          ? <button onClick={startEdit} style={{ background: "none", border: "none", color: "#b07040", cursor: "pointer", fontSize: 14, padding: "2px 6px" }}>✏️</button>
+          : <button onClick={e => { e.stopPropagation(); setEditing(false); }} style={{ background: "none", border: "none", color: "#b07040", cursor: "pointer", fontSize: 12, padding: "2px 6px" }}>✕</button>
+        }
         <button onClick={e => { e.stopPropagation(); if (window.confirm(`「${winner.name} 優勝」の記録を削除しますか？`)) onDelete(record.id); }} style={{ background: "none", border: "none", color: "#b07040", cursor: "pointer", fontSize: 14, padding: "2px 6px" }}>🗑</button>
       </div>
-      {open && (
+      {open && !editing && (
         <div style={{ padding: "0 14px 14px", borderTop: "1px solid #e8c8a0" }}>
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             {[...record.players].sort((a, b) => b.finalScore - a.finalScore).map((p, i) => {
@@ -455,6 +492,42 @@ function HistoryRow({ record, onDelete }) {
               {record.imageEnd && <img src={record.imageEnd} alt="最終" style={{ flex: 1, borderRadius: 6, maxHeight: 100, objectFit: "cover" }} />}
             </div>
           )}
+        </div>
+      )}
+      {editing && editData && (
+        <div style={{ padding: "12px 14px 14px", borderTop: "1px solid #e8c8a0" }}>
+          <div style={{ color: "#8e2a0a", fontFamily: "'Cinzel', serif", fontSize: 11, fontWeight: 700, marginBottom: 10, letterSpacing: 1 }}>✏️ EDIT RECORD</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+            <div><label style={labelStyle}>対戦日</label><input type="date" value={editData.date} onChange={e => setEditData(p => ({...p, date: e.target.value}))} style={selectStyle} /></div>
+            <div><label style={labelStyle}>場所</label><input type="text" value={editData.location || ""} onChange={e => setEditData(p => ({...p, location: e.target.value}))} style={selectStyle} /></div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+            {editData.players.map((p, i) => {
+              const c = getColor(p.colorId) || FALLBACK_COLOR;
+              return (
+                <div key={i} style={{ background: "#fdf6ec", border: `1px solid ${c.hex}66`, borderRadius: 8, padding: "8px 10px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: "50%", background: c.hex, flexShrink: 0 }} />
+                    <span style={{ color: "#5a2e10", fontSize: 12, fontWeight: 700 }}>{p.name}</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <label style={{ ...labelStyle, margin: 0, whiteSpace: "nowrap" }}>スコア</label>
+                    <input type="number" min={0} max={15} value={p.finalScore} onChange={e => updateEditPlayer(i, {...p, finalScore: Number(e.target.value)})}
+                      style={{ ...selectStyle, width: 60, padding: "4px 6px" }} />
+                    <button onClick={() => updateEditPlayer(i, {...p, longestRoad: !p.longestRoad})}
+                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 5, border: `1px solid ${p.longestRoad ? "#2471a3" : "#c8906a"}`, background: p.longestRoad ? "#2471a322" : "#fdf6ec", color: p.longestRoad ? "#2471a3" : "#8a5030", cursor: "pointer" }}>🛤 最長道路</button>
+                    <button onClick={() => updateEditPlayer(i, {...p, largestArmy: !p.largestArmy})}
+                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 5, border: `1px solid ${p.largestArmy ? "#c0392b" : "#c8906a"}`, background: p.largestArmy ? "#c0392b22" : "#fdf6ec", color: p.largestArmy ? "#c0392b" : "#8a5030", cursor: "pointer" }}>⚔️ 最大騎士</button>
+                  </div>
+                  <textarea value={p.strategy || ""} onChange={e => updateEditPlayer(i, {...p, strategy: e.target.value})} placeholder="戦略メモ..." rows={1}
+                    style={{ width: "100%", marginTop: 6, background: "#fff8f0", border: "1px solid #c8906a", borderRadius: 4, color: "#5a2e10", padding: "4px 6px", fontFamily: "'Noto Serif JP', serif", fontSize: 11, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+                </div>
+              );
+            })}
+          </div>
+          <button onClick={handleEditSave} disabled={saving} style={{ width: "100%", padding: "10px 0", borderRadius: 8, background: saving ? "#e8d0b4" : "linear-gradient(135deg,#2471a3,#3498db)", border: "none", cursor: saving ? "wait" : "pointer", color: "#fff", fontFamily: "'Cinzel', serif", fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>
+            {saving ? "⏳ 保存中..." : "💾 変更を保存"}
+          </button>
         </div>
       )}
     </div>
@@ -488,7 +561,7 @@ function StatsView({ history }) {
               <span style={{ color: c.hex, fontSize: 10, marginLeft: "auto", fontFamily: "'Cinzel', serif", fontWeight: 700 }}>{c.label}駒</span>
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 8 }}>
-              {[{ label: "試合数", value: s.games }, { label: "優勝", value: `${s.wins}回` }, { label: "勝率", value: `${rate}%` }, { label: "平均スコア", value: avg }, { label: "最高スコア", value: Math.max(...s.scores) }].map(({ label, value }) => (
+              {[{ label: "試合数", value: s.games }, { label: "優勝", value: `${s.wins}回` }, { label: "勝率", value: `${rate}%` }, { label: "平均スコア", value: avg }, { label: "累計総得点", value: s.scores.reduce((a,b)=>a+b,0) }].map(({ label, value }) => (
                 <div key={label} style={{ background: "#fdf6ec", borderRadius: 6, padding: "6px 8px", textAlign: "center", border: "1px solid #e8c8a0" }}>
                   <div style={{ color: "#8a5030", fontSize: 9, fontFamily: "'Cinzel', serif", letterSpacing: 1 }}>{label}</div>
                   <div style={{ color: c.hex, fontSize: 15, fontWeight: 700, fontFamily: "'Cinzel', serif" }}>{value}</div>
@@ -580,6 +653,18 @@ export default function CatanApp() {
   const usedColorsFor = (idx) => players.filter((_, i) => i !== idx).map(p => p.colorId);
   const winner = players.reduce((a, b) => b.finalScore > a.finalScore ? b : a, players[0]);
 
+  const resetForm = () => {
+    setEdition("スタンダード");
+    setScenario("");
+    setVictoryPoints(10);
+    setDate(new Date().toISOString().slice(0, 10));
+    setLocation("");
+    setImageStart(null);
+    setImageEnd(null);
+    setPlayerCount(4);
+    setPlayers(Array.from({ length: 4 }, (_, i) => defaultPlayer(i)));
+  };
+
   const handleSave = async () => {
     setSaveError("");
     const record = { id: genId(), date, location, edition, scenario, victoryPoints, players, imageStart, imageEnd };
@@ -588,7 +673,7 @@ export default function CatanApp() {
       const h = [record, ...history];
       setHistory(h);
       setSaved(true);
-      setTimeout(() => setSaved(false), 2000);
+      setTimeout(() => { setSaved(false); resetForm(); }, 1500);
     } catch (e) {
       setSaveError("保存に失敗しました。接続を確認してください。");
     }
@@ -601,6 +686,10 @@ export default function CatanApp() {
     } catch (e) {
       alert("削除に失敗しました");
     }
+  };
+
+  const handleUpdate = (id, updatedRecord) => {
+    setHistory(h => h.map(r => r.id === id ? { ...updatedRecord, id } : r));
   };
 
   const filteredHistory = history.filter(r =>
@@ -704,7 +793,7 @@ export default function CatanApp() {
               ? <div style={{ textAlign: "center", color: "#8a5030", padding: 40, fontFamily: "'Cinzel',serif" }}>⏳ 読み込み中...</div>
               : filteredHistory.length === 0
                 ? <div style={{ textAlign: "center", color: "#8a5030", padding: 40, fontFamily: "'Cinzel',serif" }}>{history.length === 0 ? "まだ対戦記録がありません" : "検索結果がありません"}</div>
-                : filteredHistory.map(r => <HistoryRow key={r.id} record={r} onDelete={handleDelete} />)
+                : filteredHistory.map(r => <HistoryRow key={r.id} record={r} onDelete={handleDelete} onUpdate={handleUpdate} />)
             }
           </div>
         )}
