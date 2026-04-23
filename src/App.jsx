@@ -747,9 +747,9 @@ export default function CatanApp() {
               <div style={{ marginBottom: 14 }}>
                 <label style={labelStyle}>勝利点（共通目標）</label>
                 <div style={{ display: "flex", gap: 6 }}>
-                  {[6,7,8,9,10,12,13].map(n => <button key={n} onClick={() => setVictoryPoints(n)} style={{ flex: 1, height: 34, borderRadius: 6, cursor: "pointer", background: victoryPoints===n?"#D62C1A":"#fdf6ec", border: `1px solid ${victoryPoints===n?"#D62C1A":"#c8906a"}`, color: victoryPoints===n?"#fff":"#8a5030", fontFamily: "'Cinzel',serif", fontSize: 12, fontWeight: 700, transition: "all .2s" }}>{n}</button>)}
+                  {[5,6,7,8,9,10,11,12,13,14].map(n => <button key={n} onClick={() => setVictoryPoints(n)} style={{ flex: 1, height: 34, borderRadius: 6, cursor: "pointer", background: victoryPoints===n?"#D62C1A":"#fdf6ec", border: `1px solid ${victoryPoints===n?"#D62C1A":"#c8906a"}`, color: victoryPoints===n?"#fff":"#8a5030", fontFamily: "'Cinzel',serif", fontSize: 12, fontWeight: 700, transition: "all .2s" }}>{n}</button>)}
                 </div>
-                <div style={{ color: "#b07040", fontSize: 10, marginTop: 4, fontFamily: "'Cinzel',serif" }}>※ 航海者版は12〜13点、スタンダードは10点が目安</div>
+                <div style={{ color: "#b07040", fontSize: 10, marginTop: 4, fontFamily: "'Cinzel',serif" }}>※ 航海者版は12〜14点、スタンダードは10点が目安</div>
               </div>
               <div>
                 <label style={labelStyle}>プレイヤー人数</label>
