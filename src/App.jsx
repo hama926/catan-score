@@ -274,8 +274,8 @@ function PlayerCard({ player, onChange, winner, usedColors, knownMembers, onAddM
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 12 }}>
-        <Toggle active={player.longestRoad} onClick={() => onChange({ ...player, longestRoad: !player.longestRoad })} label="🛤 最長道路" color="#2471a3" />
-        <Toggle active={player.largestArmy} onClick={() => onChange({ ...player, largestArmy: !player.largestArmy })} label="⚔️ 最大騎士" color="#c0392b" />
+        <Toggle active={player.longestRoad} onClick={() => onChange({ ...player, longestRoad: !player.longestRoad })} label="🛤 最長交易路" color="#2471a3" />
+        <Toggle active={player.largestArmy} onClick={() => onChange({ ...player, largestArmy: !player.largestArmy })} label="⚔️ 最大騎士力" color="#c0392b" />
       </div>
 
       <div>
@@ -369,7 +369,7 @@ async function generateShareCard(record) {
   ctx.beginPath(); ctx.arc(72,bY+34,20,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
   ctx.fillStyle="#3a1800"; ctx.font="bold 22px Georgia,serif"; ctx.fillText(winner.name,100,bY+30);
   ctx.font="13px Georgia,serif"; ctx.fillStyle="#8a5030";
-  const sub=[]; if(winner.longestRoad)sub.push("🛤 最長道路"); if(winner.largestArmy)sub.push("⚔️ 最大騎士"); sub.push(mapLabel);
+  const sub=[]; if(winner.longestRoad)sub.push("🛤 最長交易路"); if(winner.largestArmy)sub.push("⚔️ 最大騎士力"); sub.push(mapLabel);
   ctx.fillText(sub.join("  ·  "),100,bY+50);
   ctx.fillStyle="#c0441a"; ctx.font="bold 38px Georgia,serif"; ctx.textAlign="right"; ctx.fillText(`${winner.finalScore}pt`,LEFT_W-28,bY+60); ctx.textAlign="left";
 
@@ -479,8 +479,8 @@ function HistoryRow({ record, onDelete, onUpdate }) {
                     <span style={{ color: c.hex, fontSize: 11, fontWeight: 700 }}>{p.name}</span>
                   </div>
                   <div style={{ color: "#5a2e10", fontSize: 12 }}>スコア: {p.finalScore}</div>
-                  {p.longestRoad && <div style={{ color: "#2471a3", fontSize: 10 }}>🛤 最長道路</div>}
-                  {p.largestArmy && <div style={{ color: "#c0392b", fontSize: 10 }}>⚔️ 最大騎士</div>}
+                  {p.longestRoad && <div style={{ color: "#2471a3", fontSize: 10 }}>🛤 最長交易路</div>}
+                  {p.largestArmy && <div style={{ color: "#c0392b", fontSize: 10 }}>⚔️ 最大騎士力</div>}
                   {p.strategy && <div style={{ color: "#8a5030", fontSize: 10, marginTop: 2 }}>💬 {p.strategy}</div>}
                 </div>
               );
@@ -515,9 +515,9 @@ function HistoryRow({ record, onDelete, onUpdate }) {
                     <input type="number" min={0} max={15} value={p.finalScore} onChange={e => updateEditPlayer(i, {...p, finalScore: Number(e.target.value)})}
                       style={{ ...selectStyle, width: 60, padding: "4px 6px" }} />
                     <button onClick={() => updateEditPlayer(i, {...p, longestRoad: !p.longestRoad})}
-                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 5, border: `1px solid ${p.longestRoad ? "#2471a3" : "#c8906a"}`, background: p.longestRoad ? "#2471a322" : "#fdf6ec", color: p.longestRoad ? "#2471a3" : "#8a5030", cursor: "pointer" }}>🛤 最長道路</button>
+                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 5, border: `1px solid ${p.longestRoad ? "#2471a3" : "#c8906a"}`, background: p.longestRoad ? "#2471a322" : "#fdf6ec", color: p.longestRoad ? "#2471a3" : "#8a5030", cursor: "pointer" }}>🛤 最長交易路</button>
                     <button onClick={() => updateEditPlayer(i, {...p, largestArmy: !p.largestArmy})}
-                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 5, border: `1px solid ${p.largestArmy ? "#c0392b" : "#c8906a"}`, background: p.largestArmy ? "#c0392b22" : "#fdf6ec", color: p.largestArmy ? "#c0392b" : "#8a5030", cursor: "pointer" }}>⚔️ 最大騎士</button>
+                      style={{ fontSize: 10, padding: "3px 8px", borderRadius: 5, border: `1px solid ${p.largestArmy ? "#c0392b" : "#c8906a"}`, background: p.largestArmy ? "#c0392b22" : "#fdf6ec", color: p.largestArmy ? "#c0392b" : "#8a5030", cursor: "pointer" }}>⚔️ 最大騎士力</button>
                   </div>
                   <textarea value={p.strategy || ""} onChange={e => updateEditPlayer(i, {...p, strategy: e.target.value})} placeholder="戦略メモ..." rows={1}
                     style={{ width: "100%", marginTop: 6, background: "#fff8f0", border: "1px solid #c8906a", borderRadius: 4, color: "#5a2e10", padding: "4px 6px", fontFamily: "'Noto Serif JP', serif", fontSize: 11, resize: "vertical", outline: "none", boxSizing: "border-box" }} />
